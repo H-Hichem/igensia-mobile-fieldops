@@ -1,0 +1,402 @@
+{
+  "resource_version": 23,
+  "metadata": {
+    "version": 3,
+    "sources": [
+      {
+        "name": "default",
+        "kind": "postgres",
+        "tables": [
+          {
+            "table": {
+              "name": "observation",
+              "schema": "public"
+            },
+            "object_relationships": [
+              {
+                "name": "session",
+                "using": {
+                  "foreign_key_constraint_on": "session_id"
+                }
+              },
+              {
+                "name": "user",
+                "using": {
+                  "foreign_key_constraint_on": "user_id"
+                }
+              }
+            ],
+            "array_relationships": [
+              {
+                "name": "photos",
+                "using": {
+                  "foreign_key_constraint_on": {
+                    "column": "observation_id",
+                    "table": {
+                      "name": "photo",
+                      "schema": "public"
+                    }
+                  }
+                }
+              }
+            ],
+            "insert_permissions": [
+              {
+                "role": "user",
+                "permission": {
+                  "check": {
+                    "user_id": {
+                      "_eq": "X-Hasura-User-Id"
+                    }
+                  },
+                  "columns": [
+                    "category",
+                    "id",
+                    "location",
+                    "nombre",
+                    "notes",
+                    "poids_g",
+                    "session_id",
+                    "status",
+                    "sync_status",
+                    "user_id"
+                  ]
+                },
+                "comment": ""
+              }
+            ],
+            "select_permissions": [
+              {
+                "role": "user",
+                "permission": {
+                  "columns": [
+                    "location",
+                    "category",
+                    "id",
+                    "session_id",
+                    "status",
+                    "sync_status",
+                    "user_id",
+                    "poids_g",
+                    "nombre",
+                    "notes",
+                    "created_at",
+                    "status_changed_at",
+                    "updated_at"
+                  ],
+                  "filter": {}
+                },
+                "comment": ""
+              }
+            ],
+            "update_permissions": [
+              {
+                "role": "user",
+                "permission": {
+                  "columns": [
+                    "category",
+                    "location",
+                    "nombre",
+                    "notes",
+                    "poids_g",
+                    "status",
+                    "sync_status",
+                    "user_id"
+                  ],
+                  "filter": {
+                    "user_id": {
+                      "_eq": "X-Hasura-User-Id"
+                    }
+                  },
+                  "check": null
+                },
+                "comment": ""
+              }
+            ]
+          },
+          {
+            "table": {
+              "name": "observation_distance",
+              "schema": "public"
+            },
+            "object_relationships": [
+              {
+                "name": "observation",
+                "using": {
+                  "foreign_key_constraint_on": "observation_id"
+                }
+              }
+            ],
+            "select_permissions": [
+              {
+                "role": "user",
+                "permission": {
+                  "columns": [
+                    "observation_id",
+                    "distance"
+                  ],
+                  "filter": {}
+                },
+                "comment": ""
+              }
+            ]
+          },
+          {
+            "table": {
+              "name": "photo",
+              "schema": "public"
+            },
+            "object_relationships": [
+              {
+                "name": "observation",
+                "using": {
+                  "foreign_key_constraint_on": "observation_id"
+                }
+              }
+            ]
+          },
+          {
+            "table": {
+              "name": "session",
+              "schema": "public"
+            },
+            "object_relationships": [
+              {
+                "name": "user",
+                "using": {
+                  "foreign_key_constraint_on": "owner_id"
+                }
+              }
+            ],
+            "array_relationships": [
+              {
+                "name": "observations",
+                "using": {
+                  "foreign_key_constraint_on": {
+                    "column": "session_id",
+                    "table": {
+                      "name": "observation",
+                      "schema": "public"
+                    }
+                  }
+                }
+              }
+            ],
+            "insert_permissions": [
+              {
+                "role": "user",
+                "permission": {
+                  "check": {
+                    "owner_id": {
+                      "_eq": "X-Hasura-User-Id"
+                    }
+                  },
+                  "columns": [
+                    "address_city",
+                    "address_complement",
+                    "address_name",
+                    "address_streetno",
+                    "address_zipcode",
+                    "id",
+                    "location",
+                    "name",
+                    "notes",
+                    "owner_id",
+                    "status",
+                    "sync_status"
+                  ]
+                },
+                "comment": ""
+              }
+            ],
+            "select_permissions": [
+              {
+                "role": "user",
+                "permission": {
+                  "columns": [
+                    "location",
+                    "id",
+                    "owner_id",
+                    "status",
+                    "sync_status",
+                    "address_city",
+                    "address_complement",
+                    "address_name",
+                    "address_streetno",
+                    "address_zipcode",
+                    "name",
+                    "notes",
+                    "created_at",
+                    "updated_at"
+                  ],
+                  "filter": {}
+                },
+                "comment": ""
+              }
+            ],
+            "update_permissions": [
+              {
+                "role": "user",
+                "permission": {
+                  "columns": [
+                    "address_city",
+                    "address_complement",
+                    "address_name",
+                    "address_streetno",
+                    "address_zipcode",
+                    "location",
+                    "name",
+                    "notes",
+                    "owner_id",
+                    "status",
+                    "sync_status"
+                  ],
+                  "filter": {
+                    "owner_id": {
+                      "_eq": "X-Hasura-User-Id"
+                    }
+                  },
+                  "check": null
+                },
+                "comment": ""
+              }
+            ]
+          },
+          {
+            "table": {
+              "name": "session_distance",
+              "schema": "public"
+            },
+            "object_relationships": [
+              {
+                "name": "session",
+                "using": {
+                  "foreign_key_constraint_on": "session_id"
+                }
+              }
+            ],
+            "select_permissions": [
+              {
+                "role": "user",
+                "permission": {
+                  "columns": [
+                    "session_id",
+                    "distance"
+                  ],
+                  "filter": {}
+                },
+                "comment": ""
+              }
+            ]
+          },
+          {
+            "table": {
+              "name": "user",
+              "schema": "public"
+            },
+            "insert_permissions": [
+              {
+                "role": "user",
+                "permission": {
+                  "check": {
+                    "id": {
+                      "_eq": "X-Hasura-User-Id"
+                    }
+                  },
+                  "columns": [
+                    "email",
+                    "firstname",
+                    "lastname",
+                    "phone",
+                    "preferences"
+                  ]
+                },
+                "comment": ""
+              }
+            ],
+            "select_permissions": [
+              {
+                "role": "user",
+                "permission": {
+                  "columns": [
+                    "id",
+                    "phone",
+                    "status",
+                    "preferences",
+                    "email",
+                    "firstname",
+                    "lastname",
+                    "created_at",
+                    "updated_at"
+                  ],
+                  "filter": {
+                    "id": {
+                      "_eq": "X-Hasura-User-Id"
+                    }
+                  }
+                },
+                "comment": ""
+              }
+            ],
+            "update_permissions": [
+              {
+                "role": "user",
+                "permission": {
+                  "columns": [
+                    "email",
+                    "firstname",
+                    "lastname",
+                    "phone",
+                    "preferences"
+                  ],
+                  "filter": {
+                    "id": {
+                      "_eq": "X-Hasura-User-Id"
+                    }
+                  },
+                  "check": null
+                },
+                "comment": ""
+              }
+            ]
+          },
+          {
+            "table": {
+              "name": "user_session",
+              "schema": "public"
+            }
+          }
+        ],
+        "functions": [
+          {
+            "function": {
+              "name": "search_closest_observation",
+              "schema": "public"
+            }
+          },
+          {
+            "function": {
+              "name": "search_closest_session",
+              "schema": "public"
+            }
+          }
+        ],
+        "configuration": {
+          "connection_info": {
+            "database_url": {
+              "from_env": "HASURA_GRAPHQL_DATABASE_URL"
+            },
+            "isolation_level": "read-committed",
+            "pool_settings": {
+              "connection_lifetime": 600,
+              "idle_timeout": 180,
+              "max_connections": 50,
+              "retries": 1
+            },
+            "use_prepared_statements": true
+          }
+        }
+      }
+    ]
+  }
+}

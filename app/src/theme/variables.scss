@@ -1,0 +1,270 @@
+// ============================================================
+// FieldOps — theme/variables.scss
+// Direction "Terrain nature" — vert foret / terracotta
+// Pilote les variables Ionic natives + tokens custom FieldOps
+// ============================================================
+//
+// Mode sombre : on n'utilise PAS prefers-color-scheme directement,
+// pour permettre un choix manuel (Systeme / Clair / Sombre) depuis
+// l'ecran Profil. La classe .ion-palette-dark est ajoutee/retiree
+// sur <html> par le code applicatif (voir note en bas de fichier).
+
+:root {
+  // ---------------------------------------------------------
+  // Couleurs Ionic — MODE CLAIR
+  // ---------------------------------------------------------
+
+  // Primary — vert foret (marque, actions principales)
+  --ion-color-primary: #2D5F3F;
+  --ion-color-primary-rgb: 45, 95, 63;
+  --ion-color-primary-contrast: #ffffff;
+  --ion-color-primary-contrast-rgb: 255, 255, 255;
+  --ion-color-primary-shade: #28542f; // -10% approx (survol/pressed)
+  --ion-color-primary-tint: #42704f;
+
+  // Secondary — terracotta (accents, elements secondaires)
+  --ion-color-secondary: #C98F5E;
+  --ion-color-secondary-rgb: 201, 143, 94;
+  --ion-color-secondary-contrast: #2C2C2A;
+  --ion-color-secondary-contrast-rgb: 44, 44, 42;
+  --ion-color-secondary-shade: #b17e53;
+  --ion-color-secondary-tint: #ce9a6d;
+
+  // Tertiary — bleu-gris (infos neutres, ex. categorie "metal")
+  --ion-color-tertiary: #5C7A8A;
+  --ion-color-tertiary-rgb: 92, 122, 138;
+  --ion-color-tertiary-contrast: #ffffff;
+  --ion-color-tertiary-contrast-rgb: 255, 255, 255;
+  --ion-color-tertiary-shade: #516c7a;
+  --ion-color-tertiary-tint: #6c8896;
+
+  // Success — vert plus vif que le primary pour rester distinct
+  --ion-color-success: #3B6D11;
+  --ion-color-success-rgb: 59, 109, 17;
+  --ion-color-success-contrast: #ffffff;
+  --ion-color-success-contrast-rgb: 255, 255, 255;
+  --ion-color-success-shade: #34600f;
+  --ion-color-success-tint: #4f7c29;
+
+  // Warning — ambre (ex. poids/nombre incoherent, alerte legere)
+  --ion-color-warning: #BA7517;
+  --ion-color-warning-rgb: 186, 117, 23;
+  --ion-color-warning-contrast: #ffffff;
+  --ion-color-warning-contrast-rgb: 255, 255, 255;
+  --ion-color-warning-shade: #a36714;
+  --ion-color-warning-tint: #c1832e;
+
+  // Danger — rouge (suppression, espece invasive, confirmations destructives)
+  --ion-color-danger: #A32D2D;
+  --ion-color-danger-rgb: 163, 45, 45;
+  --ion-color-danger-contrast: #ffffff;
+  --ion-color-danger-contrast-rgb: 255, 255, 255;
+  --ion-color-danger-shade: #8f2828;
+  --ion-color-danger-tint: #ac4343;
+
+  // Dark / Medium / Light — echelle neutre chaude (pas de gris froid)
+  --ion-color-dark: #24261F;
+  --ion-color-dark-rgb: 36, 38, 31;
+  --ion-color-dark-contrast: #ffffff;
+  --ion-color-dark-contrast-rgb: 255, 255, 255;
+  --ion-color-dark-shade: #20221b;
+  --ion-color-dark-tint: #3a3c35;
+
+  --ion-color-medium: #8A8878;
+  --ion-color-medium-rgb: 138, 136, 120;
+  --ion-color-medium-contrast: #ffffff;
+  --ion-color-medium-contrast-rgb: 255, 255, 255;
+  --ion-color-medium-shade: #797869;
+  --ion-color-medium-tint: #969485;
+
+  --ion-color-light: #F7F5F0;
+  --ion-color-light-rgb: 247, 245, 240;
+  --ion-color-light-contrast: #24261F;
+  --ion-color-light-contrast-rgb: 36, 38, 31;
+  --ion-color-light-shade: #d9d7d3;
+  --ion-color-light-tint: #f8f6f2;
+
+  // ---------------------------------------------------------
+  // Fonds / textes / bordures globaux
+  // ---------------------------------------------------------
+  --ion-background-color: #F7F5F0;
+  --ion-background-color-rgb: 247, 245, 240;
+  --ion-text-color: #24261F;
+  --ion-text-color-rgb: 36, 38, 31;
+
+  --ion-item-background: #FFFFFF;
+  --ion-toolbar-background: #FFFFFF;
+  --ion-toolbar-color: #24261F;
+  --ion-border-color: #E2DFD5;
+
+  --ion-text-color-step-600: #5F5E5A; // texte secondaire / labels
+
+  // ---------------------------------------------------------
+  // Tokens custom FieldOps — categories d'observation
+  // (pas de variable Ionic standard pour ca : on cree nos propres
+  // custom properties, prefixees --fo- pour les distinguer)
+  // ---------------------------------------------------------
+  --fo-category-metal: #5C7A8A;
+  --fo-category-metal-contrast: #ffffff;
+
+  --fo-category-verre: #2A9D8F;
+  --fo-category-verre-contrast: #ffffff;
+
+  --fo-category-megot: #9C7B4F;
+  --fo-category-megot-contrast: #ffffff;
+
+  --fo-category-arbre: #386641;
+  --fo-category-arbre-contrast: #ffffff;
+
+  --fo-category-invasive: #BC4749;
+  --fo-category-invasive-contrast: #ffffff;
+
+  // Carte / marqueurs
+  --fo-map-marker-default: #2D5F3F;
+  --fo-map-marker-selected: #C98F5E;
+
+  // Surfaces (au-dela des cards Ionic standard)
+  --fo-surface-raised: #FFFFFF;
+  --fo-surface-sunken: #EFEDE6;
+}
+
+// ===============================================================
+// MODE SOMBRE
+// Applique quand <html> porte la classe .ion-palette-dark
+// (voir note d'integration en fin de fichier)
+// ===============================================================
+.ion-palette-dark {
+  // Primary — eclairci pour rester lisible sur fond sombre
+  --ion-color-primary: #5FA378;
+  --ion-color-primary-rgb: 95, 163, 120;
+  --ion-color-primary-contrast: #0E1A11;
+  --ion-color-primary-contrast-rgb: 14, 26, 17;
+  --ion-color-primary-shade: #549069;
+  --ion-color-primary-tint: #70ac85;
+
+  --ion-color-secondary: #D9A579;
+  --ion-color-secondary-rgb: 217, 165, 121;
+  --ion-color-secondary-contrast: #3A2312;
+  --ion-color-secondary-contrast-rgb: 58, 35, 18;
+  --ion-color-secondary-shade: #bf916b;
+  --ion-color-secondary-tint: #ddae87;
+
+  --ion-color-tertiary: #7C97A3;
+  --ion-color-tertiary-rgb: 124, 151, 163;
+  --ion-color-tertiary-contrast: #10181c;
+  --ion-color-tertiary-contrast-rgb: 16, 24, 28;
+  --ion-color-tertiary-shade: #6d858f;
+  --ion-color-tertiary-tint: #89a2ac;
+
+  --ion-color-success: #6E9B3E;
+  --ion-color-success-rgb: 110, 155, 62;
+  --ion-color-success-contrast: #0f1a08;
+  --ion-color-success-contrast-rgb: 15, 26, 8;
+  --ion-color-success-shade: #618937;
+  --ion-color-success-tint: #7da652;
+
+  --ion-color-warning: #D6923B;
+  --ion-color-warning-rgb: 214, 146, 59;
+  --ion-color-warning-contrast: #1f1204;
+  --ion-color-warning-contrast-rgb: 31, 18, 4;
+  --ion-color-warning-shade: #bc8034;
+  --ion-color-warning-tint: #da9d4f;
+
+  --ion-color-danger: #E07072;
+  --ion-color-danger-rgb: 224, 112, 114;
+  --ion-color-danger-contrast: #250a0a;
+  --ion-color-danger-contrast-rgb: 37, 10, 10;
+  --ion-color-danger-shade: #c56364;
+  --ion-color-danger-tint: #e37f80;
+
+  --ion-color-dark: #EDEBE3;
+  --ion-color-dark-rgb: 237, 235, 227;
+  --ion-color-dark-contrast: #1A1D17;
+  --ion-color-dark-contrast-rgb: 26, 29, 23;
+  --ion-color-dark-shade: #d1cfc8;
+  --ion-color-dark-tint: #efede6;
+
+  --ion-color-medium: #A9A79C;
+  --ion-color-medium-rgb: 169, 167, 156;
+  --ion-color-medium-contrast: #1A1D17;
+  --ion-color-medium-contrast-rgb: 26, 29, 23;
+  --ion-color-medium-shade: #949289;
+  --ion-color-medium-tint: #b1afa5;
+
+  --ion-color-light: #242720;
+  --ion-color-light-rgb: 36, 39, 32;
+  --ion-color-light-contrast: #EDEBE3;
+  --ion-color-light-contrast-rgb: 237, 235, 227;
+  --ion-color-light-shade: #202219;
+  --ion-color-light-tint: #3a3c35;
+
+  --ion-background-color: #1A1D17;
+  --ion-background-color-rgb: 26, 29, 23;
+  --ion-text-color: #EDEBE3;
+  --ion-text-color-rgb: 237, 235, 227;
+
+  --ion-item-background: #242720;
+  --ion-toolbar-background: #1F221B;
+  --ion-toolbar-color: #EDEBE3;
+  --ion-border-color: #3A3D34;
+
+  --ion-text-color-step-600: #A9A79C;
+
+  // Categories — variantes eclaircies/desaturees pour le fond sombre
+  --fo-category-metal: #7C97A3;
+  --fo-category-metal-contrast: #10181c;
+
+  --fo-category-verre: #4DBBA8;
+  --fo-category-verre-contrast: #08221c;
+
+  --fo-category-autre: #C29764;
+  --fo-category-autre-contrast: #241a0c;
+
+  --fo-category-arbre: #5B9463;
+  --fo-category-arbre-contrast: #0f1a11;
+
+  --fo-category-invasive: #E07072;
+  --fo-category-invasive-contrast: #250a0a;
+
+  --fo-map-marker-default: #5FA378;
+  --fo-map-marker-selected: #D9A579;
+
+  --fo-surface-raised: #242720;
+  --fo-surface-sunken: #17190E;
+}
+
+// ---------------------------------------------------------------
+// NOTE D'INTEGRATION (a retirer une fois lu) :
+//
+// 1. Le choix Systeme / Clair / Sombre vit dans l'ecran Profil.
+//    Stocker la preference (ex. Capacitor Preferences ou Storage) :
+//    'system' | 'light' | 'dark'.
+//
+// 2. Au demarrage de l'app (et sur changement de preference OU
+//    sur evenement matchMedia si 'system') :
+//
+//      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)');
+//      function applyPalette(mode: 'system' | 'light' | 'dark') {
+//        const isDark = mode === 'dark' || (mode === 'system' && prefersDark.matches);
+//        document.documentElement.classList.toggle('ion-palette-dark', isDark);
+//      }
+//
+// 3. Les composants Ionic (ion-button color="primary", ion-badge,
+//    ion-item, etc.) heritent automatiquement de ces variables.
+//    Pour les couleurs de categorie (pas de mapping Ionic natif),
+//    utiliser directement var(--fo-category-xxx) dans le SCSS des
+//    composants custom (badge de categorie, marqueur de carte...).
+// ---------------------------------------------------------------
+
+// TODO rendre transparent les éléments du DOM au-dessus de la carte
+// Google Maps : body must be transparent so hardware-accelerated map provided
+// by Capacitor is displayed through (check it in Chrome dev tools in the DOM)
+body {
+  background: transparent !important;
+  background-color: transparent !important;
+
+  // Nesting ion-app inside body to handle both layers at once
+  ion-app {
+    background: transparent !important;
+  }
+}

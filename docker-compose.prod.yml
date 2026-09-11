@@ -1,0 +1,204 @@
+# PREPROD AND PROD SHOULD BE THE SAME
+# merely separated to keep track of preprod test & debug conf :
+services:
+  traefik:
+    container_name: fieldops_traefik # else numbered (fieldops-traefik-1), bringing container instance proliferation 
+    image: traefik:v2.11
+    restart: unless-stopped
+    ports:
+      - "80:80" # required for Let's Encrypt (but no forwarding to containers)
+      - "443:443"
+    volumes:
+      # NB. no traefik dashboard in (pre)prod
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      # conf'ing traefik using yaml rather than docker command :
+      - ./traefik/traefik-letsencrypt.yml:/etc/traefik/traefik.yml
+      - ./traefik/dyn-traefik.yml:/etc/traefik/dyn-traefik.yml
+      # to store the (letsencrypt gen'd) certs : (.storage should be below)
+      - "./letsencrypt:/letsencrypt"
+      # NB. no tls needed with cert auto gen'd by letsencrypt
+      - ./volumes/traefik:/var/log/traefik
+    networks:
+      - dev
+
+
+  postgres:
+    container_name: fieldops_postgres
+    image: postgis/postgis:17-3.5-alpine
+    restart: always
+    # set shared memory limit when using docker-compose
+    ##shm_size: 128mb
+    #env_file:
+    #  - .env.dev
+    environment:
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      DB: "${DB}"
+      DB_USER: "${DB_USER}"
+      DB_PASSWORD: "${DB_PASSWORD}"
+    volumes:
+      - ./volumes/pg-data:/var/lib/postgresql/data
+      - ./postgres/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d
+    healthcheck:
+      # see https://stackoverflow.com/questions/72272476/how-to-perform-docker-compose-healthcheck-for-pgadmin4
+      test: ["CMD-SHELL", "pg_isready --quiet -h localhost --dbname=$${DB} --username=$${DB_USER} || exit 1"]
+      interval: 10s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+    networks:
+      - dev
+
+  # NB. Hasura may take up to 20s for traefik to make it available on HTTPS
+  hasura:
+    container_name: fieldops_hasura
+    image: hasura/graphql-engine:v2.44.0
+    depends_on:
+      postgres:
+        condition: service_healthy
+        #restart: true
+    restart: always
+    environment:
+      HASURA_GRAPHQL_CORS_DOMAIN: "https://${WEB_RULE_ADDRESS},https://${PWA_RULE_ADDRESS}"
+      HASURA_GRAPHQL_ENABLE_CONSOLE: "true"
+      HASURA_GRAPHQL_DEV_MODE: ${HASURA_GRAPHQL_DEV_MODE}
+      HASURA_GRAPHQL_ENABLED_LOG_TYPES: startup, http-log, webhook-log, websocket-log, query-log
+      # database - Hasura metadata
+      HASURA_GRAPHQL_METADATA_DATABASE_URL: postgres://${DB_USER}:${DB_PASSWORD}@postgres:${POSTGRES_DOCKER_PORT}/${DB}
+      # database - project data ; else error on restored prod dump : (Inconsistent object: environment variable 'HASURA_GRAPHQL_DATABASE_URL' not set)
+      HASURA_GRAPHQL_DATABASE_URL: postgres://${DB_USER}:${DB_PASSWORD}@postgres:${POSTGRES_DOCKER_PORT}/${DB}
+      # enable checking user authentication with keycloak :
+      # copy from Realm settings > Keys > RS256 - Certificate
+      # see also https://github.com/janhapke/hasura-keycloak/blob/main/docker-compose.yml
+      ##HASURA_GRAPHQL_JWT_SECRET: ${KEYCLOAK_REALM_JWT_SECRET} # DOES NOT WORK...
+      HASURA_GRAPHQL_JWT_SECRET: '{"type": "RS256", "key": "-----BEGIN CERTIFICATE-----\nMIIClTCCAX0CBgGX73WY5jANBgkqhkiG9w0BAQsFADAOMQwwCgYDVQQDDANtc3AwHhcNMjUwNzA5MTM1MDUwWhcNMzUwNzA5MTM1MjMwWjAOMQwwCgYDVQQDDANtc3AwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCjfMmjp4O5Uy3JU78vQtpbU1XppEj4tZSI5NW2/f6RAHZTldizXYWST+iMcdvzLcnAKv/1juXYiFSxfzbk3nXlgVeUc83AiHf+yBwNfyolieX1ZBhYI2hkUKsDDpe+mknoI+qdiLepQ8T6otxFukaFgDei68ftUu/7jTw/mULfV1GQWxgB3Wd7O+oPtzVZoigRKERG1luTrlyRP4APq30/2RW7seuR8IZ04vzBCjHKWqOTWMkcwGVWw3kqR7ZB6/c157/hrfTfVQKoWMc4xOoff63whunkTGQm/Z5NkfmdWaWm4bHpK8hs5BI2DJikiW9uFn27C/mOoZr/KaJa4fXdAgMBAAEwDQYJKoZIhvcNAQELBQADggEBADxxlvrfln4AoWCzaQWE+eWp0vm0+/ZgL5ajyjTCXzlEaD6d9qbEuM0REEP0LrDwz2J/MJA7MwkvEE9ShCpso3QtrVzE9rtf/9/UZhug1/7Pj3X2ygKCa7QrY9ZkVuTB3Yaldsp6289hEVfMbF9U2bR6bbNq3diee135iiTn6ljYrhfWMIlP+qUrzdHqnDSm3oZuZysZ4iU8LqGsUMGKMssZDh/XUI/T0O3Ds8lhfahTu3BNC/kSPH2zCXTW9jpXIh6/1jBe03XkrGmovOHunpEA5RPiBU96NWNQ/XHUAcwXjigrLMIfHZX7LnclzhQueehxzJBeyETVObACGc2elS4=\n-----END CERTIFICATE-----"}'
+      HASURA_GRAPHQL_ADMIN_SECRET: ${HASURA_GRAPHQL_ADMIN_SECRET}
+      # unauthenticated role (for app get nearby pharmacies) :
+      HASURA_GRAPHQL_UNAUTHORIZED_ROLE: "anonymous"
+      # action server url : (that can be referenced in Hasura Action conf ; NOT _RULE_ADDRESS else in dev unreachable because resolves to localhost)
+      # see https://hasura.io/blog/moving-from-local-development-staging-production-with-hasura/ https://stackoverflow.com/questions/61990748/how-to-pass-hasura-action-handler-url-from-environment-variables
+      # to reach another container :
+      API_SERVER_URL: http://api:${API_DOCKER_PORT}
+      # or to reach a host port ex. in dev :
+      #API_SERVER_URL: http://host.docker.internal:${API_LOCAL_PORT}
+    # restart: on-failure
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.hasura.rule=Host(`${HASURA_RULE_ADDRESS}`)"
+      - "traefik.http.routers.hasura.entrypoints=websecure"
+      - "traefik.http.routers.hasura.tls.certresolver=myresolver"
+      # if port is not the default 80 (nor the single exported one), specify it:
+      # https://serverfault.com/questions/1049286/traefik-ssl-for-a-service-that-runs-on-non-standard-port
+      - "traefik.http.services.hasura.loadbalancer.server.port=${HASURA_DOCKER_PORT}"
+    networks:
+      - dev
+    extra_hosts:
+      # BEWARE DEV ONLY to be able to call what is manually run in local dev on host ex. action server code
+      # NB. on mac seems also to work https://stackoverflow.com/questions/69143270/cannot-access-docker-host-from-macos
+      - "host.docker.internal:host-gateway"
+
+  api:
+    container_name: fieldops_api
+    build:
+      context: ./api
+      target: production #dev pour development/preprod, production pour la prod
+    depends_on:
+      - hasura
+    restart: always # avoids pm2, mandatory for node (esp. express may crash
+    # very easily ex. 'headers already sent' error from bad async)
+    #network_mode: "host" #pour éviter de mapper auth.traefik.me sur 127.0.0.1
+    volumes:
+      # dev - mount source, to listen to changes using nodemon -L : (but use container's node_modules etc.)
+      - ./api/src:/var/www/app/src
+    # NB. use command from Dockerfile according to target
+    # debugging - to allow to start process manually within the container : (when crashes at start)
+    #command: sleep infinity
+    environment:
+      # NB. production does not much BUT otherwise use another prop to know env https://www.geeksforgeeks.org/node-js/what-is-node_env-in-node-js/
+      NODE_ENV: development
+      ENV: preprod
+      DEBUG: nodejs-docker-express:*
+      CORS_ORIGIN: "https://${WEB_RULE_ADDRESS},https://${PWA_RULE_ADDRESS},https://localhost,http://localhost,capacitor://localhost"
+      API_DOCKER_PORT: $API_DOCKER_PORT
+      # to call back Hasura data layer : (not here else can't switch to locally run action server, NOT _RULE_ADDRESS else in dev unreachable because resolves to localhost)
+      # (or to call from docker container to host port : http://host.docker.internal:8080/v1/graphql/ )
+      # (or to call from host dev or test to host port incl. docker : http://localhost:8080/v1/graphql/ )
+      HASURA_ENDPOINT : http://hasura:${HASURA_DOCKER_PORT}/v1/graphql/
+      HASURA_GRAPHQL_ADMIN_SECRET : ${HASURA_GRAPHQL_ADMIN_SECRET}
+      MAIL_CONTACT: "${MAIL_CONTACT}"
+      SERVER_SMTP_HOST: "${SERVER_SMTP_HOST}"
+      SERVER_SMTP_PORT: "${SERVER_SMTP_PORT}"
+      SERVER_SMTP_USER: "${SERVER_SMTP_USER}"
+      SERVER_SMTP_PASS: "${SERVER_SMTP_PASS}"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api.rule=Host(`${API_RULE_ADDRESS}`)"
+      - "traefik.http.routers.api.entrypoints=websecure"
+      - "traefik.http.routers.api.tls.certresolver=myresolver"
+      - "traefik.http.services.api.loadbalancer.server.port=${API_DOCKER_PORT}"
+    networks:
+      - dev
+
+  app:
+    container_name: fieldops_app
+    build:
+      context: ./app
+      target: dev # dev pour "ionic serve", production pour ionic build vers nginx
+      ###target: preprod
+      args:
+        # pass env vars for the build stage when target has a 2 stage build :
+        VITE_BASE: ${PWA_RULE_ADDRESS} # to fill VITE_BASE in vite config
+        VITE_GRAPHQL_API_URL: ${HASURA_RULE_ADDRESS}
+        VITE_API_URL: "${API_RULE_ADDRESS}"
+    restart: always
+    # NB. use command from Dockerfile according to target
+    # debugging - to allow to start process manually within the container : (when crashes at start)
+    #command: sleep infinity
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.app.rule=Host(`${PWA_RULE_ADDRESS}`)"
+      - "traefik.http.routers.app.entrypoints=websecure"
+      - "traefik.http.routers.app.tls.certresolver=myresolver"
+      - "traefik.http.services.app.loadbalancer.server.port=${PWA_DOCKER_PORT}"
+      # protect PWA (even in prod since only for testing) to prevent it being on Google :
+      # (check by looking for site:preprod.msp.interludesante.com on Google.com)
+      - "traefik.http.routers.app.middlewares=prod-users@file"
+    environment:
+      VITE_BASE: ${PWA_RULE_ADDRESS} # to fill VITE_BASE in vite config : (not in mobile)
+      VITE_GRAPHQL_API_URL: ${HASURA_RULE_ADDRESS}
+      VITE_API_URL: "${API_RULE_ADDRESS}"
+    volumes:
+      # dev - mount source, to listen to changes TODO how : (but use container's node_modules etc.)
+      - ./app/src:/usr/src/ionic-app/src
+    networks:
+      - dev
+
+  # BONUS PgAdmin, for now disabled (lighter, rather use ex. DBeaver tool)
+  pgadmin:
+    profiles :
+      - donotstart
+    container_name: fieldops_pgadmin
+    image: dpage/pgadmin4
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: mobile@interludesante.com
+      PGADMIN_DEFAULT_PASSWORD: "$PGADMIN_DEFAULT_PASSWORD"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.pgadmin.rule=Host(`${PGADMIN_RULE_ADDRESS}`)"
+      - "traefik.http.routers.pgadmin.entrypoints=websecure"
+      - "traefik.http.routers.pgadmin.tls.certresolver=myresolver"
+      - "traefik.http.services.pgadmin.loadbalancer.server.port=${PGADMIN_DOCKER_PORT}"
+      # protect incl. to prevent it being on Google :
+      # (check by looking for site:preprod.msp.interludesante.com on Google.com)
+      - "traefik.http.routers.pgadmin.middlewares=prod-users@file"
+    networks:
+      - dev
+
+networks:
+  dev:
+
+volumes:
+  #postgres-pgdata: # data -if a docker volume (rather than a bind-mounted volume)
+  certs:

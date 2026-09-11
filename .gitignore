@@ -1,0 +1,18 @@
+letsencrypt
+volumes/*
+docker-compose.yml
+# don't commit env vars : 
+.env
+.env.*
+!.env.dev
+!.env.example
+# don't commit certs : (even local dev, else if ends up public ex. on github will be banned...)
+certs/*
+!certs/.keep
+*.pem
+/node_modules/
+*/node_modules/*
+logs/*
+*.jar
+.project
+.vscode

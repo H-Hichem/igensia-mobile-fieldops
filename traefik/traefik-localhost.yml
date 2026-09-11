@@ -1,0 +1,34 @@
+logLevel: INFO
+
+log:
+  filePath: /var/log/traefik/debug.log
+  level: DEBUG
+
+api:
+  insecure: true
+  dashboard: true
+
+entryPoints:
+  http:
+    address: ":80"
+  https:
+    address: ":443"
+
+accessLog:
+  filePath: /var/log/traefik/access.log
+  bufferingSize: 100
+  fields:
+    defaultMode: keep
+    headers:
+      defaultMode: keep
+
+providers:
+  file:
+    filename: /etc/traefik/dyn-traefik.yml
+  docker:
+    endpoint: unix:///var/run/docker.sock
+    watch: true
+    # only expose containers with a traefik.enable=true label:
+    exposedByDefault: false
+    # TODO TODO TODO ? for using traefik.me domain in local dev : (redirects to localhost)
+    defaultRule: 'HostRegexp(`{{ index .Labels "com.docker.compose.service"}}.localhost`,`{{ index .Labels "com.docker.compose.service"}}-{dashed-ip:.*}.localhost`)'

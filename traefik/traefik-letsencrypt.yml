@@ -1,0 +1,53 @@
+logLevel: INFO
+
+log:
+  filePath: /var/log/traefik/debug.log
+  level: DEBUG
+
+api:
+  insecure: false
+  dashboard: false
+
+# see https://community.traefik.io/t/https-redirection-without-breaking-letsencrypt-http-challenge/11215/2
+http:
+  middlewares:
+    test-redirectscheme:
+      redirectScheme:
+        scheme: https
+        permanent: true
+
+entryPoints:
+  web:
+    # only for letsencrypt httpChallenge & redirection to https
+    address: ":80"
+  websecure:
+    address: ":443"
+
+accessLog:
+  filePath: /var/log/traefik/access.log
+  bufferingSize: 100
+  fields:
+    defaultMode: keep
+    headers:
+      defaultMode: keep
+
+providers:
+  file:
+    filename: /etc/traefik/dyn-traefik.yml
+  docker:
+    endpoint: unix:///var/run/docker.sock
+    watch: true
+    # only expose containers with a traefik.enable=true label:
+    exposedByDefault: false
+
+# cert auto gen'd by letsencrypt :
+#(no tls in dyn-traefik.yml conf needed, requires /letsencrypt dir ex. created by docker bind volume)
+certificatesResolvers:
+  myresolver:
+    acme:
+      email: mobile@interludesante.com
+      storage: /letsencrypt/acme.json
+      # Let's Encrypt challenge : NOT tlsChallenge because then AZNetworks blocks outside France
+      # see https://doc.traefik.io/traefik/https/acme/#httpchallenge
+      httpChallenge:
+        entryPoint: web
