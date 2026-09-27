@@ -70,7 +70,7 @@ services:
 
   postgres:
     container_name: fieldops_postgres
-    image: postgis/postgis:17-3.5-alpine
+    image: postgis/postgis:17-3.5
     restart: always
     environment:
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
@@ -96,7 +96,8 @@ services:
   # NB. Hasura may take up to 20s for traefik to make it available on HTTPS
   hasura:
     container_name: fieldops_hasura
-    image: hasura/graphql-engine:v2.44.0
+    image: hasura/graphql-engine:v2.44.0.ubuntu
+    platform: linux/amd64
     depends_on:
       postgres:
         condition: service_healthy
