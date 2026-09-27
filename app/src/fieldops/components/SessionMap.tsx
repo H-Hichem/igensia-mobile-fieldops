@@ -5,7 +5,6 @@ import { geoJSONToLngLat } from '../utils';
 import { GoogleMap } from '@capacitor/google-maps'; // et non de React !
 ///import { LatLng } from '@capacitor/google-maps/typings/definitions.d';
 
-
 interface Props {
   center: { lat: number; lng: number };
   observations: Observation[];
@@ -25,6 +24,8 @@ export function SessionMap({ center, observations, onSelectObservation }: Props)
   // changement de props, ici GoogleMap.create() est couteux : on cree une
   // seule instance puis on la met a jour via son API
   useEffect(() => {
+    let createdMap: GoogleMap | null = null;
+
     const createMap = async () => {
       if (!mapRef.current) return;
 
@@ -36,12 +37,14 @@ export function SessionMap({ center, observations, onSelectObservation }: Props)
         //config: { center: { lat: 45.7, lng: 4.8 }, zoom: 16 }
         config: { center: { lat: center.lat, lng: center.lng }, zoom: 16 }
       });
+      createdMap = newMap;
+
       // HACK on rajoute la correspondance id métier - marker directement sur
       // l'objet technique, sans quoi même un useRef() ne parvient pas à en
       // suivre le cycle de vie :
-      newMap.observationIdToMarkerIdMap = new Map<string, string>();
+      (newMap as any).observationIdToMarkerIdMap = new Map<string, string>();
       setMap(newMap);
-     
+      
       // TODO rajouter un marqueur sur la même position pour tester, puis le commenter :
       /*
       const markerId = await newMap.addMarker({
@@ -55,12 +58,36 @@ export function SessionMap({ center, observations, onSelectObservation }: Props)
       // TODO TP BONUS écouter les événements de click sur les markers,
       // et en afficher les informations dans un alert()
       // TODO TP BONUS EXTRA afficher l'observation correspondante à l'aide de onSelectObservation et newMap.observationIdToMarkerIdMap
+      await newMap.setOnMarkerClickListener(async (event) => {
+        const markerMap = (newMap as any).observationIdToMarkerIdMap as Map<string, string>;
+        let foundObservation: Observation | undefined;
+
+        if (markerMap) {
+          for (const [obsId, mId] of markerMap.entries()) {
+            if (mId === event.markerId) {
+              foundObservation = observations.find(o => o.id === obsId);
+              break;
+            }
+          }
+        }
+
+        if (foundObservation) {
+          alert(`Observation sélectionnée : ${foundObservation.title || foundObservation.id}`);
+          if (onSelectObservation) {
+            onSelectObservation(foundObservation);
+          }
+        } else {
+          alert(`Marker cliqué : ${event.markerId} (lat: ${event.latitude}, lng: ${event.longitude})`);
+        }
+      });
     }
     createMap();
 
     return () => {
       // nettoyage sur démontage composant :
-      map?.destroy();
+      if (createdMap) {
+        createdMap.destroy();
+      }
       setMap(null);
     };
   }, [mapRef.current, setMap]); // NE PAS écouter center !
@@ -69,7 +96,13 @@ export function SessionMap({ center, observations, onSelectObservation }: Props)
   // l'instance
   useEffect(() => {
     // TODO TP code de mise à jour du centre de la carte lorsque la propriété center change :
-  }, [/* TODO TP*/]);
+    if (map && center) {
+      map.setCamera({
+        coordinate: center,
+        animate: true
+      });
+    }
+  }, [map, center]);
 
   // Resynchronise les marqueurs quand la liste d'observations change : on
   // retire tous les anciens puis on ajoute les nouveaux. Pas de diff fin
@@ -80,39 +113,34 @@ export function SessionMap({ center, observations, onSelectObservation }: Props)
       // sinon Error: Invalid Arguments Provided: markers array requires at least one marker.
       console.log('addMarkers');
       
-      /* VERSION SIMPLE (sans le BONUS) :
-      // TODO code d'ajoût des markers des observations (disponibles en propriété du composant React) :
-      // (hint : s'aider de geoJSONToLngLat)
-      await map.addMarkers(observations.map(o => {
-        return {
-          // TODO rajouter au moins un champ optionnel de configuration du Marker, voir https://capacitorjs.com/docs/apis/google-maps#marker
-          coordinate: geoJSONToLngLat(o.location as GeoJSONPoint),
-        };
-      }));
-      */
-              
       /* VERSION COMPLETE : */
       // TODO BONUS (voir plus bas)
       const oIdToBeRemoved: string[] = [];
-      const observationIdToMarkerIdMap = map.observationIdToMarkerIdMap as Map<string, string>;
+      const markerIdToBeRemoved: string[] = [];
+      const observationIdToMarkerIdMap = (map as any).observationIdToMarkerIdMap as Map<string, string>;
+      
       observationIdToMarkerIdMap?.forEach((mId, oId) => {
         if (!observations.find(o => o.id === oId)) {
           oIdToBeRemoved.push(oId);
+          markerIdToBeRemoved.push(mId);
         }
       });
-      if (oIdToBeRemoved?.length) {
-        await map.removeMarkers(oIdToBeRemoved);
+      if (markerIdToBeRemoved?.length) {
+        await map.removeMarkers(markerIdToBeRemoved);
       }
 
       // TODO code d'ajoût des markers des observations (disponibles en propriété du composant React) :
       // (hint : s'aider de geoJSONToLngLat)
-      const toBeAddedObservations = observations.filter(o => !observationIdToMarkerIdMap.get(o.id));
+      const toBeAddedObservations = observations.filter(o => !observationIdToMarkerIdMap?.get(o.id));
       let mIds: string[] = [];
       if (toBeAddedObservations?.length) {
         mIds = await map.addMarkers(toBeAddedObservations.map(o => {
           return {
             // TODO rajouter au moins un champ optionnel de configuration du Marker, voir https://capacitorjs.com/docs/apis/google-maps#marker
             coordinate: geoJSONToLngLat(o.location as GeoJSONPoint),
+            title: o.title || `Observation ${o.id}`,
+            snippet: `Observation ID: ${o.id}`,
+            opacity: 0.9
           };
         }));
         console.log('markers rajoutés');
@@ -121,17 +149,16 @@ export function SessionMap({ center, observations, onSelectObservation }: Props)
       // TODO BONUS EXTRA se rappeler des ids des markers rajoutés
       // puis s'en servir pour supprimer tous les markers avant d'en rajouter
       // (hint : s'aider de map.observationIdToMarkerIdMap)
-      if (oIdToBeRemoved?.length || toBeAddedObservations?.length) {
+      if (observationIdToMarkerIdMap && (oIdToBeRemoved?.length || toBeAddedObservations?.length)) {
         oIdToBeRemoved.forEach(oId => observationIdToMarkerIdMap.delete(oId));
         toBeAddedObservations.forEach((o, mIdInd) => {
           observationIdToMarkerIdMap.set(o.id, mIds[mIdInd]);
         });
-        map.observationIdToMarkerIdMap = observationIdToMarkerIdMap;
+        (map as any).observationIdToMarkerIdMap = observationIdToMarkerIdMap;
       }
-      /**/
-    }
+    };
     addMarkers();
-  }, [/* TODO */map, observations]);
+  }, [map, observations]);
 
   // style inline plutot qu'une classe externe, car
   // Le web component ne prend sa taille que si on la lui donne explicitement
