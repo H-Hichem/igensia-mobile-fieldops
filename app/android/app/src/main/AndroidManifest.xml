@@ -32,7 +32,7 @@
 
         </activity>
 
-        <meta-data android:name="com.google.android.geo.API_KEY" android:value="AIzaSyBixVik8850vhfVwCCEr7XCBMZ57QGHiP0"/>
+        <meta-data android:name="com.google.android.geo.API_KEY" android:value="AIzaSyD-mYVkjhBEjne0_irbmnedFnGS7HvGdBk"/>
 
         <provider
             android:name="androidx.core.content.FileProvider"
