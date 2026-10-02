@@ -23,13 +23,13 @@ export function useDataService() {
   const { token, user } = useAuth();
 
   return useMemo(() => {
-    /*
+    
     if (!token || !user) {
       throw new Error(
         'useDataService necessite un utilisateur connecte (a utiliser derriere RequireAuth)'
       );
     }
-    */
+    
 
     return {
       
@@ -52,7 +52,8 @@ export function useDataService() {
           observationsRepository.fetchOne(token, sessionId, obsId),
         create: (sessionId: string, input: ObservationInput) =>
           // TODO BONUS EXTRA offline create modification en s'inspirant de l'update
-          observationsApi.create(token, sessionId, { ...input, user_id: user.id }),
+          // REMPLACEMENT : On passe par le repository au lieu de l'API pour que l'offline fonctionne
+          observationsRepository.create(token, sessionId, { ...input, user_id: user.id }),
         update: (sessionId: string, obsId: string, input: ObservationInput) =>
           observationsRepository.update(token, sessionId, obsId, input),
         delete: (sessionId: string, obsId: string) =>
@@ -93,6 +94,34 @@ export function useDataService() {
 
             } else if (op.operationType === 'create') {
               // TODO BONUS EXTRA offline create modification en s'inspirant de l'update
+              try {
+                // Pour une création, on appelle la méthode API create
+                const resObservation = await observationsApi.create(token, obs.session_id, obs);
+                await outbox.remove(op.id);
+                await updateLocalStoreForObservation(resObservation);
+              } catch (e) {
+                const err = (e instanceof Error) ? e as Error : null;
+                const isNetworkError = err?.name === 'TimeoutError';
+                console.log('DataService syncAll create error', JSON.stringify(op, null, 2), e);
+                if (isNetworkError) {
+                  await outbox.markFailed(op.id, JSON.stringify(e, null, 2));
+                  
+                } else {
+                  // erreur métier pas résolvable immédiatement, on change l'opération dans l'outbox ;
+                  obs.sync_status = 'ERROR';
+                  const payload = { ...obs };
+                  delete payload.user;
+                  delete (payload as any).photos;
+                  await outbox.enqueue({
+                    entity: 'observation',
+                    entityId: obs.id, 
+                    sessionId: obs.session_id, 
+                    operationType: 'create', // On maintient le type 'create'
+                    payload, 
+                  });
+                  await outbox.remove(op.id);
+                }
+              }
               
             } else if (op.operationType === 'update') {
               try {
@@ -104,7 +133,7 @@ export function useDataService() {
                 const isNetworkError = err?.name === 'TimeoutError';
                 console.log('DataService syncAll error', JSON.stringify(op, null, 2), e);
                 if (isNetworkError) {
-                  outbox.markFailed(op.id, JSON.stringify(e, null, 2));
+                  await outbox.markFailed(op.id, JSON.stringify(e, null, 2)); // Ajout d'un await par précaution
                   
                 } else {
                   // erreur métier pas résolvable immédiatement, on change l'opération dans l'outbox ;

@@ -1,3 +1,4 @@
+import React, { useEffect, useState } from 'react';
 import {
   IonButton,
   IonContent,
@@ -13,10 +14,32 @@ import {
 import { useCurrentSession } from '../../fieldops/context/CurrentSessionContext';
 import { ROUTE_PATTERNS } from '../../app/routes';
 import { useDataService } from '../hooks/useDataService';
+import { outbox } from '../services/outbox';
 
 export function SideMenu() {
   const { currentSession } = useCurrentSession();
   const dataService = useDataService();
+  const [isSyncDisabled, setIsSyncDisabled] = useState(true);
+
+  // Fonction pour vérifier si l'outbox contient des opérations en attente
+  const checkOutboxStatus = async () => {
+    const ops = await outbox.list();
+    setIsSyncDisabled(ops.length === 0);
+  };
+
+  // Rafraîchir l'état du bouton toutes les 2 secondes
+  useEffect(() => {
+    checkOutboxStatus();
+    const interval = setInterval(checkOutboxStatus, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleSync = async () => {
+    if (dataService) {
+      await dataService.syncAll();
+      await checkOutboxStatus();
+    }
+  };
 
   return (
     <IonMenu contentId="main" type="overlay">
@@ -27,10 +50,16 @@ export function SideMenu() {
       </IonHeader>
       <IonContent>
         <IonList>
-          {/* TODO rajouter un bouton Synchroniser qui appelle dataService.syncAll() */}
-          <IonButton onClick={() => dataService?.syncAll() /* TODO appelez DataService.syncAll() depuis un bouton Synchroniser (IonButton onClick) à rajouter dans le Menu */}>
-            <IonLabel>Synchroniser</IonLabel>
-          </IonButton>
+          {/* Bouton Synchroniser avec gestion de l'état (grisé si outbox vide) */}
+          <IonItem lines="none">
+            <IonButton 
+              disabled={isSyncDisabled} 
+              onClick={handleSync}
+            >
+              <IonLabel>Synchroniser</IonLabel>
+            </IonButton>
+          </IonItem>
+          
           {/* v1 (TD) : toujours une session implicite */}
           <IonMenuToggle autoHide={false}>
             {currentSession ? (
@@ -43,6 +72,7 @@ export function SideMenu() {
               </IonItem>
             )}
           </IonMenuToggle>
+          
           <IonMenuToggle autoHide={false}>
             <IonItem routerLink={ROUTE_PATTERNS.profile} lines="none">
               <IonLabel>Profil</IonLabel>

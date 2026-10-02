@@ -5,6 +5,8 @@ import { ObservationForm, ObservationFormValues } from '../components/Observatio
 import { useDataService } from '../../shared/hooks/useDataService';
 import { Observation } from '../types';
 import { ROUTES } from '../../app/routes';
+import { IonItem, IonLabel, IonIcon } from '@ionic/react';
+import { cloudOfflineOutline, warningOutline } from 'ionicons/icons';
 
 // "Observation" : affichage + edition. Le createur est en lecture seule (passe a
 // ObservationForm via la prop `creator`, jamais editable).
@@ -38,6 +40,26 @@ export default function ObservationPage() {
 
   return (
     <FieldsScreenLayout title="Observation" defaultHref={ROUTES.session(sessionId)}>
+      
+      {/* --- AFFICHAGE DE L'ÉTAT DE SYNCHRONISATION --- */}
+      {observation.sync_status === 'PENDING' && (
+        <IonItem color="warning" lines="none">
+          <IonIcon icon={cloudOfflineOutline} slot="start" />
+          <IonLabel className="ion-text-wrap">
+            <strong>Hors-ligne</strong> : En attente de synchronisation
+          </IonLabel>
+        </IonItem>
+      )}
+      {observation.sync_status === 'ERROR' && (
+        <IonItem color="danger" lines="none">
+          <IonIcon icon={warningOutline} slot="start" />
+          <IonLabel className="ion-text-wrap">
+            <strong>Erreur</strong> : Échec de la synchronisation
+          </IonLabel>
+        </IonItem>
+      )}
+      {/* ---------------------------------------------- */}
+
       <ObservationForm
         mode="edit"
         initialValues={initialValues}

@@ -1,9 +1,7 @@
 import { Observation, ObservationInput, Photo, PhotoInput, GeoJSONPoint } from '../types';
 import { observationsApi } from './observationsApi';
-
 import { preferencesLocalStore } from '../../shared/services/localStore';
 import { outbox } from '../../shared/services/outbox';
-
 
 const OBSERVATIONS_KEY = 'observations';
 
@@ -11,11 +9,10 @@ const getLocalObservations = async () => {
   return (await preferencesLocalStore.get(OBSERVATIONS_KEY) || []) as Observation[];
 }
 
-// TODO lorsqu'elles réussissent, rafraichir (ou mettre à jour partiellement) un cache local des objets à l'aide de (app/)src/shared/services/localStore.tsx
 export const updateLocalStoreForObservation = async (observation: Observation) => {
   const localObservations = await getLocalObservations();
   const ind = localObservations.map((o, ind) => o.id === observation.id ? ind : null).filter(ind => !!ind)[0];
-  if (ind) {
+  if (ind !== undefined && ind !== null) {
     // refresh que quand pas modifiée :
     if (localObservations[ind].sync_status === 'SYNCED') localObservations[ind] = observation;
   } else {
@@ -27,9 +24,21 @@ export const updateLocalStoreForObservation = async (observation: Observation) =
 export const observationsRepository = {
   
   async fetchBySession(token: string, sessionId: string): Promise<Observation[]> {
-    // TODO TD implémenter au-dessus d'observationsApi
-    return await observationsApi.fetchBySession(token, sessionId);
-    // TODO lorsqu'elles réussissent, rafraichir (ou mettre à jour partiellement) un cache local des objets à l'aide de (app/)src/shared/services/localStore.tsx
+    try {
+      const observations = await observationsApi.fetchBySession(token, sessionId);
+      
+      // Mise à jour du cache local
+      const localObservations = await getLocalObservations();
+      const localChangedObservations = localObservations.filter(lo => lo.sync_status !== 'SYNCED');
+      const observationsWithoutLocalChanges = observations.filter(o => !localChangedObservations.find(lo => lo.id === o.id));
+      
+      await preferencesLocalStore.set(OBSERVATIONS_KEY, [...localChangedObservations, ...observationsWithoutLocalChanges]);
+      return observations;
+    } catch (e) {
+      console.log('observationsRepository fetchBySession network error, returning cache', e);
+      const localObservations = await getLocalObservations();
+      return localObservations.filter(o => o.session_id === sessionId);
+    }
   },
 
   async fetchNearby(
@@ -38,16 +47,13 @@ export const observationsRepository = {
     limit = 20,
     radiusMeters = 1000000
   ): Promise<Observation[]> {
-    // TODO TD implémenter au-dessus d'observationsApi
-    //return await observationsApi.fetchNearby(token, position, limit, radiusMeters); // TD
     try {
       const observations = await observationsApi.fetchNearby(token, position, limit, radiusMeters)
       
-      // TODO lorsqu'elles réussissent, rafraichir (ou mettre à jour partiellement) un cache local des objets à l'aide de (app/)src/shared/services/localStore.tsx
       const localObservations = await getLocalObservations();
       const localChangedObservations = localObservations.filter(lo => lo.sync_status !== 'SYNCED');
-      // refresh que quand pas modifiée :
       const observationsWithoutLocalChanges = observations.filter(o => !localChangedObservations.find(lo => lo.id == o.id));
+      
       await preferencesLocalStore.set(OBSERVATIONS_KEY, [...localChangedObservations, ...observationsWithoutLocalChanges]);
       return observations;
       
@@ -58,13 +64,8 @@ export const observationsRepository = {
   },
 
   async fetchOne(token: string, sessionId: string, observationId: string): Promise<Observation> {
-    // TODO TD implémenter au-dessus d'observationsApi
-    //return await observationsApi.fetchOne(token, sessionId, observationId); // TD
-    // TODO lorsqu'elles réussissent, rafraichir (ou mettre à jour partiellement) un cache local des objets à l'aide de (app/)src/shared/services/localStore.tsx
     try {
       const observation = await observationsApi.fetchOne(token, sessionId, observationId);
-      
-      // TODO lorsqu'elles réussissent, rafraichir (ou mettre à jour partiellement) un cache local des objets à l'aide de (app/)src/shared/services/localStore.tsx
       await updateLocalStoreForObservation(observation);
       return observation;
       
@@ -84,8 +85,54 @@ export const observationsRepository = {
     sessionId: string,
     input: ObservationInput & { user_id: string }
   ): Promise<Observation> {
-    // TODO BONUS EXTRA offline create modification en s'inspirant de l'update
-    return await observationsApi.create(token, sessionId, input);
+    const localObservations = await getLocalObservations();
+    try {
+      const observation = await observationsApi.create(token, sessionId, input);
+      await updateLocalStoreForObservation(observation);
+      return observation;
+    } catch (e) {
+      const err = (e instanceof Error) ? e as Error : null;
+      const isNetworkError = err?.name === 'TimeoutError' || err?.message.includes('Network request failed') || err?.message.includes('Failed to fetch');
+      
+      if (isNetworkError) {
+        console.log('observationsRepository create network error, updating cache and adding outbox operation', e);
+        
+        const nowISO601 = new Date().toISOString();
+        const newId = typeof crypto !== 'undefined' && crypto.randomUUID 
+          ? crypto.randomUUID() 
+          : Math.random().toString(36).substring(2) + Date.now().toString(36);
+
+        const newObservation: Observation = {
+          ...input,
+          id: newId,
+          session_id: sessionId,
+          user_id: input.user_id,
+          created_at: nowISO601, 
+          updated_at: nowISO601,
+          status: 'created',
+          status_changed_at: nowISO601,
+          sync_status: 'PENDING',
+        } as Observation;
+
+        localObservations.push(newObservation);
+        await preferencesLocalStore.set(OBSERVATIONS_KEY, localObservations);
+
+        const payload = { ...newObservation };
+        delete payload.user;
+        delete (payload as any).photos; // typescript workaround si non présent
+
+        await outbox.enqueue({
+          entity: 'observation',
+          entityId: newObservation.id,
+          sessionId: newObservation.session_id,
+          operationType: 'create',
+          payload,
+        });
+
+        return newObservation;
+      }
+      throw e;
+    }
   },
 
   async update(
@@ -94,24 +141,19 @@ export const observationsRepository = {
     observationId: string,
     input: ObservationInput
   ): Promise<Observation> {
-    // TODO TD implémenter au-dessus d'observationsApi
-    //return await observationsApi.fetchOne(token, sessionId, observationId); // TD
-    // TODO lorsqu'elles réussissent, rafraichir (ou mettre à jour partiellement) un cache local des objets à l'aide de (app/)src/shared/services/localStore.tsx
     const localObservations = await getLocalObservations();
     try {
       const observation = await observationsApi.update(token, sessionId, observationId, input);
-      
-      // TODO lorsqu'elles réussissent, rafraichir (ou mettre à jour partiellement) un cache local des objets à l'aide de (app/)src/shared/services/localStore.tsx
       await updateLocalStoreForObservation(observation);
       return observation;
       
     } catch (e) {
       const err = (e instanceof Error) ? e as Error : null;
-      const isNetworkError = err?.name === 'TimeoutError';
+      const isNetworkError = err?.name === 'TimeoutError' || err?.message.includes('Network request failed') || err?.message.includes('Failed to fetch');
+      
       if (isNetworkError) {
         console.log('observationsRepository update network error, updating cache and adding outbox operation', e);
   
-        // TODO lors de toute écriture, rajoutez d'abord l'opération correspondante dans ladite file d'outbox (hint : sync_status PENDING).
         let updatedObservation: Observation;
         const singleIndList = localObservations.map((o, ind) => o.id === observationId ? ind : null).filter(ind => ind !== null);
         const hasLocalObservation = singleIndList?.length;
@@ -120,71 +162,79 @@ export const observationsRepository = {
           updatedObservation = {
             ...(localObservations[ind as number]),
             ...input,
-            sync_status: 'PENDING', // TRES IMPORTANT pour l'offline !
+            sync_status: 'PENDING',
           };
           localObservations[ind as number] = updatedObservation;
         } else {
           const nowISO601 = new Date().toISOString();
           updatedObservation = {
-            id: observationId, // crypto.randomUUID(), // si création identifiant généré côté client !
+            id: observationId,
             session_id: sessionId,
             user_id: 'dummy',
             created_at: nowISO601, 
             updated_at: nowISO601,
             status: 'created',
             status_changed_at: nowISO601,
-            sync_status: 'PENDING', // TRES IMPORTANT pour l'offline !
+            sync_status: 'PENDING',
             ...input
-          };
+          } as Observation;
           localObservations.push(updatedObservation);
         }
         const payload = { ...updatedObservation };
         delete payload.user;
-        delete payload.photos;
+        delete (payload as any).photos;
+        
         await outbox.enqueue({
           entity: 'observation',
-          entityId: updatedObservation.id, // id (définitif, généré côté client) de l'entité concernée
-          sessionId: updatedObservation.session_id, // pour une observation, sa séance parente
+          entityId: updatedObservation.id,
+          sessionId: updatedObservation.session_id,
           operationType: 'update',
-          payload, // données à envoyer (objet métier ou son diff)
+          payload,
         });
         
         await preferencesLocalStore.set(OBSERVATIONS_KEY, localObservations);
         return updatedObservation;
-        
       }
-      console.log('observationsRepository update unknown error, rethrowing', e);
-      // erreurs métier, à résoudre par l'utilisateur :
-      // ex. GraphQLRequestError    
-      /* {
-          "errors": [
-              {
-                  "message": "numeric field overflow", // poids_g trop grand
-                  "extensions": {
-                      "path": "$",
-                      "code": "data-exception"
-                  }
-              }
-          ]
-      }
-      */
       throw e;
     }
   },
 
-  async delete(
-    token: string,
-    sessionId: string,
-    observationId: string,
-  ): Promise<Observation> {
+  async delete(token: string, sessionId: string, observationId: string): Promise<Observation> {
     return await observationsApi.delete(token, sessionId, observationId);
   },
 
-  async addPhoto(
-    token: string,
-    observationId: string,
-    input: PhotoInput
-  ): Promise<Photo> {
+  async addPhoto(token: string, observationId: string, input: PhotoInput): Promise<Photo> {
     return await observationsApi.addPhoto(token, observationId, input);
+  },
+
+// Fonction pour vider l'outbox en rejouant les requêtes
+  async syncAll(token: string): Promise<void> {
+    const queue = await outbox.list();
+    if (!queue || queue.length === 0) return;
+
+    for (const item of queue) {
+      if (item.entity === 'observation') {
+        try {
+          let syncedObservation: Observation | null = null;
+          
+          if (item.operationType === 'create') {
+            syncedObservation = await observationsApi.create(token, item.sessionId as string, item.payload as any);
+          } else if (item.operationType === 'update') {
+            syncedObservation = await observationsApi.update(token, item.sessionId as string, item.entityId, item.payload as any);
+          }
+
+          if (syncedObservation) {
+            // Remet le sync_status à SYNCED et met à jour le cache
+            await updateLocalStoreForObservation(syncedObservation);
+            // Retire de la file d'attente en utilisant l'ID de l'opération
+            await outbox.remove(item.id); 
+          }
+        } catch (error) {
+          console.error(`Erreur lors de la synchronisation de l'observation ${item.entityId}`, error);
+          // On marque l'échec pour incrémenter les attempts sans bloquer la suite
+          await outbox.markFailed(item.id, String(error));
+        }
+      }
+    }
   }
 };
